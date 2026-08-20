@@ -126,6 +126,8 @@ dependencies {
     implementation project(':catvod')
     implementation project(':chaquo')
     implementation project(':quickjs')
+    implementation "org.apache.commons:commons-compress:1.27.1"
+    implementation "org.tukaani:xz:1.10"
     implementation libs.appcompat
     implementation libs.lifecycle.service
     implementation libs.media
