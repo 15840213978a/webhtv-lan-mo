@@ -171,12 +171,25 @@ jobs:
           STORE_PASSWORD="${RELEASE_STORE_PASSWORD:-$KEY_PASSWORD}"
           ALIAS="${RELEASE_KEY_ALIAS:-$KEY_ALIAS}"
           KEY_PASS="${RELEASE_KEY_PASSWORD:-$STORE_PASSWORD}"
-          if [ -z "$KS_BASE64" ] || [ -z "$STORE_PASSWORD" ] || [ -z "$ALIAS" ]; then
-            echo "::error title=Release signing not configured::Configure RELEASE_KEYSTORE_BASE64, RELEASE_KEY_ALIAS and RELEASE_STORE_PASSWORD in repository secrets."
-            exit 1
-          fi
           mkdir -p app/signing
-          printf '%s' "$KS_BASE64" | base64 --decode > app/signing/release.jks
+          if [ -z "$KS_BASE64" ] || [ -z "$STORE_PASSWORD" ] || [ -z "$ALIAS" ]; then
+            STORE_PASSWORD="webhtv-ci-$GITHUB_RUN_ID"
+            ALIAS="webhtv-ci"
+            KEY_PASS="$STORE_PASSWORD"
+            keytool -genkeypair -v \
+              -keystore app/signing/release.jks \
+              -storetype PKCS12 \
+              -storepass "$STORE_PASSWORD" \
+              -alias "$ALIAS" \
+              -keypass "$KEY_PASS" \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=WebHTV CI, OU=GitHub Actions, O=woaiguyu1314, L=Unknown, ST=Unknown, C=CN"
+            echo "::warning title=Temporary CI signing::Repository signing secrets are absent; APKs use a run-specific certificate and cannot update another signature."
+          else
+            printf '%s' "$KS_BASE64" | base64 --decode > app/signing/release.jks
+          fi
           {
             echo "storeFile=$GITHUB_WORKSPACE/app/signing/release.jks"
             echo "keyAlias=$ALIAS"
