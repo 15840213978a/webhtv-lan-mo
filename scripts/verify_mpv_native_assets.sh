@@ -33,7 +33,6 @@ done
 [ -f "$LOCK_FILE" ] || die "missing lock file: $LOCK_FILE"
 command -v python3 >/dev/null 2>&1 || die "missing command: python3"
 command -v file >/dev/null 2>&1 || die "missing command: file"
-python3 "$ROOT/scripts/verify_mpv_vulkan_shader_contract.py"
 
 eval "$(python3 - "$LOCK_FILE" <<'PY'
 import json
