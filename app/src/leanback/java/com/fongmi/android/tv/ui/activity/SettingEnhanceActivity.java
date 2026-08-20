@@ -9,13 +9,9 @@ import android.view.ViewGroup;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AlertDialog;
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.viewbinding.ViewBinding;
 
 import com.fongmi.android.tv.R;
-import com.fongmi.android.tv.ad.audio.AdAudioRuleStore;
-import com.fongmi.android.tv.ad.audio.AdAudioSetting;
 import com.fongmi.android.tv.bean.AiConfig;
 import com.fongmi.android.tv.bean.AudioConfig;
 import com.fongmi.android.tv.bean.ShortDramaConfig;
@@ -23,8 +19,6 @@ import com.fongmi.android.tv.bean.TmdbConfig;
 import com.fongmi.android.tv.gitcloud.GitCloudAccountStore;
 import com.fongmi.android.tv.playback.ViewingRecordSyncStore;
 import com.fongmi.android.tv.remote.RemoteStore;
-import com.fongmi.android.tv.server.Server;
-import com.fongmi.android.tv.service.PlaybackService;
 import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.databinding.ActivitySettingEnhanceBinding;
 import com.fongmi.android.tv.setting.CustomCspSetting;
@@ -55,7 +49,6 @@ import com.fongmi.android.tv.ui.dialog.WebHomeThemeDialog;
 import com.fongmi.android.tv.utils.LoginStateSync;
 import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.PermissionUtil;
-import com.fongmi.android.tv.utils.Task;
 import com.github.catvod.crawler.SpiderDebug;
 import com.fongmi.android.tv.web.ext.WebHomeExtensionRegistry;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -68,9 +61,6 @@ public class SettingEnhanceActivity extends BaseActivity {
     private static final int[] DETAIL_THEME_MODES = {Setting.DETAIL_STYLE_NATIVE, Setting.DETAIL_STYLE_PROFILE, Setting.DETAIL_STYLE_CINEMA};
 
     private ActivitySettingEnhanceBinding mBinding;
-    private volatile AdAudioRuleStore.Snapshot adAudioSnapshot = AdAudioRuleStore.get().current();
-    private final ActivityResultLauncher<String[]> adAudioRulePicker =
-            registerForActivityResult(new ActivityResultContracts.OpenDocument(), this::importAdAudioRules);
 
     public static void start(Activity activity) {
         activity.startActivity(new Intent(activity, SettingEnhanceActivity.class));
@@ -91,16 +81,13 @@ public class SettingEnhanceActivity extends BaseActivity {
         mBinding.customCsp.requestFocus();
         mBinding.tmdbModel.setVisibility(View.GONE);
         setText();
-        Task.execute(() -> {
-            adAudioSnapshot = AdAudioRuleStore.get().load();
-            runOnUiThread(this::setText);
-        });
     }
 
     @Override
     protected void initEvent() {
         mBinding.githubRepo.setOnClickListener(view -> openRepo(URL_GITHUB));
         mBinding.cnbRepo.setOnClickListener(view -> openRepo(URL_CNB));
+        mBinding.lab.setOnClickListener(view -> com.fongmi.android.tv.lab.LabActivity.start(this));
         mBinding.driveCheck.setOnClickListener(this::setDriveCheck);
         mBinding.siteName.setOnClickListener(this::setSiteName);
         mBinding.audioSource.setOnClickListener(this::setAudioSource);
@@ -109,8 +96,6 @@ public class SettingEnhanceActivity extends BaseActivity {
         mBinding.aiRecommendation.setOnClickListener(this::setAiRecommendation);
         mBinding.aiAdDetection.setOnClickListener(this::setAiAdDetection);
         mBinding.adRuleManage.setOnClickListener(view -> AdRuleManageDialog.create().show(this, this::setText));
-        mBinding.adAudioFingerprint.setOnClickListener(this::toggleAdAudioFingerprint);
-        mBinding.adAudioFingerprint.setOnLongClickListener(this::manageAdAudioRules);
         mBinding.detailInteractionMode.setOnClickListener(this::setDetailOpenMode);
         mBinding.detailThemeMode.setOnClickListener(this::setDetailThemeMode);
         mBinding.debugLog.setOnClickListener(this::setDebugLog);
@@ -141,6 +126,7 @@ public class SettingEnhanceActivity extends BaseActivity {
     private void reorderItems() {
         ViewGroup parent = (ViewGroup) mBinding.customCsp.getParent();
         View[] order = {
+                mBinding.lab,
                 mBinding.customCsp,
                 mBinding.webHomeExtension,
                 mBinding.gitCloud,
@@ -160,9 +146,6 @@ public class SettingEnhanceActivity extends BaseActivity {
                 mBinding.shortDramaSource,
                 mBinding.tmdbSource,
                 mBinding.aiRecommendation,
-                mBinding.aiAdDetection,
-                mBinding.adRuleManage,
-                mBinding.adAudioFingerprint,
                 mBinding.tmdbModel,
                 mBinding.detailInteractionMode,
                 mBinding.detailThemeMode,
@@ -190,7 +173,6 @@ public class SettingEnhanceActivity extends BaseActivity {
         safeSet("adRuleManage", mBinding.adRuleManageText, () -> getString(R.string.ad_rule_count_with_pending,
                 com.fongmi.android.tv.api.config.UserAdRuleStore.load().size() + com.fongmi.android.tv.api.config.RuleConfig.get().getDefaultRules().size(),
                 com.fongmi.android.tv.api.config.ImportedAdRuleCandidateStore.pending().size()));
-        safeSet("adAudioFingerprint", mBinding.adAudioFingerprintText, this::getAdAudioFingerprintText);
         safeSet("detailInteractionMode", mBinding.detailInteractionModeText, this::getDetailOpenModeText);
         safeRun("detailThemeModeVisibility", () -> mBinding.detailThemeMode.setVisibility(Setting.isTmdbMode(Setting.getDetailOpenMode()) ? View.VISIBLE : View.GONE), null);
         safeSet("detailThemeMode", mBinding.detailThemeModeText, this::getDetailThemeModeText);
@@ -406,89 +388,6 @@ public class SettingEnhanceActivity extends BaseActivity {
         SiteHealthStore.clear();
         Notify.show(R.string.site_health_clear_done);
         return true;
-    }
-
-    private String getAdAudioFingerprintText() {
-        String enabled = getSwitch(AdAudioSetting.isEnabled());
-        AdAudioRuleStore.Snapshot snapshot = adAudioSnapshot;
-        if (snapshot == null || snapshot.hasError()) {
-            return enabled + " · " + getString(R.string.setting_ad_audio_rule_error);
-        }
-        int count = snapshot.ruleSet().rules().size();
-        if (count == 0) return enabled + " · " + getString(R.string.setting_ad_audio_no_rules);
-        return enabled + " · " + getString(R.string.setting_ad_audio_rule_count, count, snapshot.version());
-    }
-
-    private void toggleAdAudioFingerprint(View view) {
-        AdAudioSetting.setEnabled(!AdAudioSetting.isEnabled());
-        notifyAdAudioRuntime();
-        setText();
-    }
-
-    private boolean manageAdAudioRules(View view) {
-        new MaterialAlertDialogBuilder(this, R.style.Theme_WebHTV_LightDialog)
-                .setTitle(R.string.setting_ad_audio_title)
-                .setItems(new String[]{
-                        getString(R.string.setting_ad_audio_import),
-                        getString(R.string.setting_ad_audio_clear)
-                }, (dialog, which) -> {
-                    if (which == 0) {
-                        adAudioRulePicker.launch(new String[]{"application/json", "text/json"});
-                    } else {
-                        confirmClearAdAudioRules();
-                    }
-                })
-                .setNegativeButton(R.string.dialog_negative, null)
-                .show();
-        return true;
-    }
-
-    private void importAdAudioRules(Uri uri) {
-        if (uri == null) return;
-        Task.execute(() -> {
-            String message;
-            try {
-                adAudioSnapshot = AdAudioRuleStore.get().importUri(getContentResolver(), uri);
-                message = getString(R.string.setting_ad_audio_imported,
-                        adAudioSnapshot.ruleSet().rules().size(), adAudioSnapshot.version());
-            } catch (Exception e) {
-                message = getString(R.string.setting_ad_audio_import_failed);
-            }
-            String result = message;
-            runOnUiThread(() -> {
-                if (!canSetText()) return;
-                Notify.show(result);
-                notifyAdAudioRuntime();
-                setText();
-            });
-        });
-    }
-
-    private void confirmClearAdAudioRules() {
-        new MaterialAlertDialogBuilder(this, R.style.Theme_WebHTV_LightDialog)
-                .setTitle(R.string.setting_ad_audio_clear)
-                .setMessage(R.string.setting_ad_audio_clear_confirm)
-                .setPositiveButton(R.string.dialog_positive, (dialog, which) -> Task.execute(() -> {
-                    try {
-                        adAudioSnapshot = AdAudioRuleStore.get().clear();
-                        runOnUiThread(() -> {
-                            if (!canSetText()) return;
-                            Notify.show(R.string.setting_ad_audio_clear_done);
-                            notifyAdAudioRuntime();
-                            setText();
-                        });
-                    } catch (RuntimeException e) {
-                        runOnUiThread(() -> Notify.show(R.string.setting_ad_audio_import_failed));
-                    }
-                }))
-                .setNegativeButton(R.string.dialog_negative, null)
-                .show();
-    }
-
-    private void notifyAdAudioRuntime() {
-        PlaybackService service = Server.get().getService();
-        if (service == null || service.player() == null || service.player().isReleased()) return;
-        service.player().reloadAdAudioRules();
     }
 
     private boolean clearWebHomeExtension(View view) {

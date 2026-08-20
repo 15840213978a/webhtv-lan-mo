@@ -101,6 +101,45 @@
             android:process=":error_activity"
             android:theme="@style/Theme.Crash" />
 
+        <activity
+            android:name=".lab.LabActivity"
+            android:exported="false"
+            android:theme="@style/Theme.App.Lab" />
+
+        <activity
+            android:name=".lab.LabDetailActivity"
+            android:exported="false"
+            android:theme="@style/Theme.App.Lab" />
+
+        <activity
+            android:name=".lab.LabTerminalActivity"
+            android:exported="false"
+            android:theme="@style/Theme.App.Lab" />
+
+        <activity
+            android:name=".lab.LabOutputActivity"
+            android:exported="false"
+            android:theme="@style/Theme.App.Lab" />
+
+        <activity
+            android:name=".ui.novel.ReaderActivity"
+            android:exported="false"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize" />
+
+        <activity
+            android:name=".ui.pics.PicsActivity"
+            android:exported="false"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize" />
+
+        <activity
+            android:name=".ui.web.WebReaderActivity"
+            android:exported="false"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|uiMode" />
+
+        <service
+            android:name=".lab.LabRuntimeService"
+            android:exported="false" />
+
         <receiver
             android:name=".receiver.ActionReceiver"
             android:exported="false">

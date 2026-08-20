@@ -1,0 +1,381 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FF101010">
+
+    <!-- 壁纸/背景（WALLPAPER 模式露出） -->
+    <View
+        android:id="@+id/read_wall"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#FF101010" />
+
+    <!-- 自绘阅读 View -->
+    <com.fongmi.android.tv.ui.novel.ReadView
+        android:id="@+id/read_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- 自动阅读顶部进度 -->
+    <ProgressBar
+        android:id="@+id/progress_auto"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="3dp"
+        android:layout_gravity="top"
+        android:visibility="gone"
+        android:max="100"
+        android:progressDrawable="@android:color/holo_blue_light" />
+
+    <!-- 顶部栏 -->
+    <LinearLayout
+        android:id="@+id/top_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:orientation="horizontal"
+        android:padding="12dp"
+        android:background="#99000000"
+        android:gravity="center_vertical">
+
+        <ImageView
+            android:id="@+id/btn_back"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:src="@drawable/ic_reader_back"
+            android:background="?attr/selectableItemBackground" />
+
+        <TextView
+            android:id="@+id/tv_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textSize="16sp"
+            android:textColor="#FFEAF2F8"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:layout_marginStart="12dp" />
+
+        <TextView
+            android:id="@+id/tv_chapter"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textSize="14sp"
+            android:textColor="#FF9FB3C8"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:gravity="end" />
+
+        <ImageView
+            android:id="@+id/btn_keep"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:src="@drawable/ic_reader_keep"
+            android:layout_marginStart="12dp"
+            android:background="?attr/selectableItemBackground" />
+
+        <ImageView
+            android:id="@+id/btn_tts"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:src="@drawable/ic_reader_tts"
+            android:layout_marginStart="12dp"
+            android:background="?attr/selectableItemBackground" />
+    </LinearLayout>
+
+    <!-- 底部栏 -->
+    <LinearLayout
+        android:id="@+id/bottom_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:background="#99000000"
+        android:padding="8dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <ImageView
+                android:id="@+id/btn_prev_page"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:src="@drawable/ic_reader_prev"
+                android:background="?attr/selectableItemBackground" />
+
+            <TextView
+                android:id="@+id/tv_page"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:textColor="#FFEAF2F8"
+                android:textSize="13sp" />
+
+            <ImageView
+                android:id="@+id/btn_next_page"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:src="@drawable/ic_reader_next"
+                android:background="?attr/selectableItemBackground" />
+        </LinearLayout>
+
+        <SeekBar
+            android:id="@+id/seek_page"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="100" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <ImageView
+                android:id="@+id/btn_chapter"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@drawable/ic_reader_chapter"
+                android:background="?attr/selectableItemBackground" />
+            <ImageView
+                android:id="@+id/btn_bg"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@drawable/ic_reader_bg"
+                android:background="?attr/selectableItemBackground" />
+            <ImageView
+                android:id="@+id/btn_anim"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@drawable/ic_reader_anim"
+                android:background="?attr/selectableItemBackground" />
+            <ImageView
+                android:id="@+id/btn_settings"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@drawable/ic_reader_settings"
+                android:background="?attr/selectableItemBackground" />
+            <ImageView
+                android:id="@+id/btn_auto"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@drawable/ic_reader_auto"
+                android:background="?attr/selectableItemBackground" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 加载 -->
+    <ProgressBar
+        android:id="@+id/loading"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="center"
+        android:visibility="gone" />
+
+    <!-- 设置面板 -->
+    <LinearLayout
+        android:id="@+id/panel_settings"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:background="#E61A1A1A"
+        android:padding="16dp"
+        android:visibility="gone">
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+            <TextView android:layout_width="80dp" android:layout_height="wrap_content" android:text="亮度" android:textColor="#FFEAF2F8" />
+            <SeekBar android:id="@+id/seek_brightness" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:max="100" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+            <TextView android:layout_width="80dp" android:layout_height="wrap_content" android:text="字号" android:textColor="#FFEAF2F8" />
+            <SeekBar android:id="@+id/seek_font" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:max="40" android:progress="18" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+            <TextView android:layout_width="80dp" android:layout_height="wrap_content" android:text="段距" android:textColor="#FFEAF2F8" />
+            <SeekBar android:id="@+id/seek_para" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:max="40" android:progress="8" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+            <TextView android:layout_width="80dp" android:layout_height="wrap_content" android:text="行距" android:textColor="#FFEAF2F8" />
+            <SeekBar android:id="@+id/seek_line" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:max="30" android:progress="14" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+            <TextView android:layout_width="80dp" android:layout_height="wrap_content" android:text="字距" android:textColor="#FFEAF2F8" />
+            <SeekBar android:id="@+id/seek_letter" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:max="20" />
+        </LinearLayout>
+        <RadioGroup
+            android:id="@+id/rg_weight"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <RadioButton android:id="@+id/rb_weight_0" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="细" android:textColor="#FFEAF2F8" android:checked="true" />
+            <RadioButton android:id="@+id/rb_weight_1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="常规" android:textColor="#FFEAF2F8" />
+            <RadioButton android:id="@+id/rb_weight_2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="微粗" android:textColor="#FFEAF2F8" />
+            <RadioButton android:id="@+id/rb_weight_3" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="中粗" android:textColor="#FFEAF2F8" />
+        </RadioGroup>
+        <ImageView
+            android:id="@+id/btn_settings_close"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="end"
+            android:layout_marginTop="8dp"
+            android:src="@drawable/ic_reader_close" />
+    </LinearLayout>
+
+    <!-- TTS 面板 -->
+    <LinearLayout
+        android:id="@+id/panel_tts"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:background="#E61A1A1A"
+        android:padding="16dp"
+        android:visibility="gone">
+
+        <RadioGroup
+            android:id="@+id/rg_tts_source"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <RadioButton android:id="@+id/rb_tts_0" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="系统" android:textColor="#FFEAF2F8" android:checked="true" />
+            <RadioButton android:id="@+id/rb_tts_1" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="腾讯" android:textColor="#FFEAF2F8" />
+            <RadioButton android:id="@+id/rb_tts_2" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="微软" android:textColor="#FFEAF2F8" />
+        </RadioGroup>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+            <TextView android:layout_width="80dp" android:layout_height="wrap_content" android:text="语速" android:textColor="#FFEAF2F8" />
+            <SeekBar android:id="@+id/seek_tts_speed" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:max="100" android:progress="50" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center">
+            <ImageView android:id="@+id/btn_tts_prev" android:layout_width="40dp" android:layout_height="40dp" android:src="@drawable/ic_reader_prev" android:background="?attr/selectableItemBackground" />
+            <ImageView android:id="@+id/btn_tts_play" android:layout_width="48dp" android:layout_height="48dp" android:src="@drawable/ic_reader_play" android:layout_marginHorizontal="16dp" android:background="?attr/selectableItemBackground" />
+            <ImageView android:id="@+id/btn_tts_next" android:layout_width="40dp" android:layout_height="40dp" android:src="@drawable/ic_reader_next" android:background="?attr/selectableItemBackground" />
+        </LinearLayout>
+        <ImageView
+            android:id="@+id/btn_tts_close"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="end"
+            android:layout_marginTop="8dp"
+            android:src="@drawable/ic_reader_close" />
+    </LinearLayout>
+
+    <!-- 自动阅读面板 -->
+    <LinearLayout
+        android:id="@+id/panel_auto"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:background="#E61A1A1A"
+        android:padding="16dp"
+        android:visibility="gone">
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+            <TextView android:layout_width="80dp" android:layout_height="wrap_content" android:text="速度" android:textColor="#FFEAF2F8" />
+            <SeekBar android:id="@+id/seek_auto_speed" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:max="100" android:progress="50" />
+        </LinearLayout>
+        <ImageView
+            android:id="@+id/btn_auto_close"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="end"
+            android:layout_marginTop="8dp"
+            android:src="@drawable/ic_reader_close" />
+    </LinearLayout>
+
+    <!-- 章节面板（目录/书签/详情） -->
+    <LinearLayout
+        android:id="@+id/panel_chapter"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:background="#E61A1A1A"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="12dp">
+
+            <TextView
+                android:id="@+id/tab_directory"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:text="目录"
+                android:textSize="16sp"
+                android:textColor="#FFEAF2F8" />
+            <TextView
+                android:id="@+id/tab_bookmark"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:text="书签"
+                android:textSize="16sp"
+                android:textColor="#FFEAF2F8" />
+            <TextView
+                android:id="@+id/tab_detail"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:text="详情"
+                android:textSize="16sp"
+                android:textColor="#FFEAF2F8" />
+            <ImageView
+                android:id="@+id/btn_chapter_close"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:src="@drawable/ic_reader_close" />
+        </LinearLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_chapter"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rv_bookmark"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:id="@+id/layout_detail"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:visibility="gone">
+
+            <ImageView
+                android:id="@+id/iv_cover"
+                android:layout_width="120dp"
+                android:layout_height="160dp"
+                android:layout_gravity="center_horizontal"
+                android:scaleType="centerCrop" />
+            <TextView
+                android:id="@+id/tv_intro"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:textColor="#FFEAF2F8"
+                android:textSize="14sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+</FrameLayout>

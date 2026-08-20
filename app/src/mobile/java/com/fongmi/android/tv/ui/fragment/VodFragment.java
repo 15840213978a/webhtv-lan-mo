@@ -52,8 +52,6 @@ import com.fongmi.android.tv.ui.dialog.FilterDialog;
 import com.fongmi.android.tv.ui.dialog.HistoryDialog;
 import com.fongmi.android.tv.ui.dialog.LinkDialog;
 import com.fongmi.android.tv.ui.dialog.OneKeySyncDialog;
-import com.fongmi.android.tv.ui.dialog.PushPlayDialog;
-import com.fongmi.android.tv.ui.dialog.PushPlayUrlDialog;
 import com.fongmi.android.tv.ui.dialog.ReceiveDialog;
 import com.fongmi.android.tv.ui.dialog.SiteDialog;
 import com.fongmi.android.tv.ui.dialog.TypeDialog;
@@ -295,7 +293,6 @@ public class VodFragment extends BaseFragment implements ConfigListener, SiteLis
         else if (item.getItemId() == R.id.history) HistoryActivity.start(requireActivity());
         else if (item.getItemId() == R.id.sync) OneKeySyncDialog.create().show(requireActivity());
         else if (item.getItemId() == R.id.push_apk) ApkPushDialog.create().listener(this::onApkDeviceSelected).show(requireActivity());
-        else if (item.getItemId() == R.id.push_play) PushPlayDialog.create().listener(this::onPushPlayDeviceSelected).show(requireActivity());
         else if (item.getItemId() == R.id.enhance && homeActivity() != null) homeActivity().openEnhanceFromVod();
         else if (item.getItemId() == R.id.web_home_fullscreen) onWebHomeFullscreen();
         else return false;
@@ -312,12 +309,6 @@ public class VodFragment extends BaseFragment implements ConfigListener, SiteLis
         pendingApkDevice = device;
         App.post(() -> {
             if (isAdded()) apkLauncher.launch(new String[]{"application/vnd.android.package-archive", "application/octet-stream"});
-        });
-    }
-
-    private void onPushPlayDeviceSelected(Device device) {
-        App.post(() -> {
-            if (isAdded()) PushPlayUrlDialog.create(device).show(requireActivity());
         });
     }
 
@@ -523,8 +514,20 @@ public class VodFragment extends BaseFragment implements ConfigListener, SiteLis
 
     @Override
     public void onPause() {
-        if (mWeb != null) mWeb.onPause();
+        // 不在这里暂停 WebView：App 切后台时网页音乐/音频需要继续播放。
+        // 暂停统一由 onHiddenChanged / onDestroyView 控制（切页或销毁时）。
         super.onPause();
+    }
+
+    @Override
+    public void onHiddenChanged(boolean hidden) {
+        super.onHiddenChanged(hidden);
+        if (mWeb == null) return;
+        if (hidden) {
+            mWeb.onPause();
+        } else {
+            mWeb.onResume();
+        }
     }
 
     @Override
