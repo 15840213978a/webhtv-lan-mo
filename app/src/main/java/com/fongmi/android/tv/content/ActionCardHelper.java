@@ -30,7 +30,8 @@ import java.util.concurrent.Executors;
  * 兼容上游 Vod.action 原生字段与 vod_tag:'action' + vod_id JSON 两种协议，
  * 由 TypeFragment.onItemClick 的 isAction 分支调用，替代上游只 Toast msg 的简陋处理。
  *
- * 流程：点击动作卡 → 异步调 spider.action(卡片JSON) → 按响应类型分发：
+ * 流程：点击动作卡 → 自包含 browser 卡（type:browser + url，无需站点参与）本地直接开内置 WebView；
+ * 其余卡片异步调 spider.action(卡片JSON) → 按响应类型分发：
  *  - type:"browser"（含嵌套在 action 字段里的变体）→ GameWebActivity 内置 WebView 打开
  *  - type:"input" → 弹输入框（title/tip/value）→ 确认后把输入填回 value 字段再次调用，
  *    形成影视+ 的链式输入（如「访问网址」→输入→开网页、「磁力链接设置」→输入→保存）
@@ -45,10 +46,26 @@ public final class ActionCardHelper {
     /** 点击动作卡片入口：siteKey 为站点 key，actionJson 为卡片 vod_id JSON 或原生 action 字段内容。 */
     public static void handleAction(Activity activity, String siteKey, String actionJson) {
         if (activity == null || TextUtils.isEmpty(actionJson)) return;
+        // 实验室：自包含 browser 动作卡（vod_id 直接携带 type:browser + url，如 小游戏.js、
+        // 资源管理.py 的游戏大厅/书签卡）本地直接执行，不经 spider.action() 回传——
+        // JS 爬虫未实现 action()，回传只会得到 null（表现为「动作无响应」）。
+        JsonObject self = GameContentHandler.browserAction(actionJson);
+        if (self != null) {
+            GameWebActivity.start(activity, normalizeUrl(GameContentHandler.urlOf(self)),
+                    GameContentHandler.titleOf(self, ""), null, GameContentHandler.headersOf(self));
+            return;
+        }
         executor.execute(() -> {
             String resp = callSpider(siteKey, actionJson);
             main.post(() -> dispatch(activity, siteKey, resp));
         });
+    }
+
+    /** 补全协议头：裸域名（如 baidu.com）按 https:// 处理，对齐 py 端 _open_url_action。 */
+    private static String normalizeUrl(String url) {
+        String u = url == null ? "" : url.trim();
+        if (!u.isEmpty() && !u.startsWith("http://") && !u.startsWith("https://")) u = "https://" + u;
+        return u;
     }
 
     /* ---------------- spider 调用（对齐 SiteApi.action） ---------------- */

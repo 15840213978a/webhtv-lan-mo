@@ -96,11 +96,11 @@ public class GameContentHandler implements ContentHandler {
         return "OPEN_URL".equals(actionId) || TYPE_BROWSER.equals(actionId);
     }
 
-    private static String urlOf(JsonObject obj) {
+    static String urlOf(JsonObject obj) {
         return stringOf(obj, "url");
     }
 
-    private static String titleOf(JsonObject obj, String fallback) {
+    static String titleOf(JsonObject obj, String fallback) {
         String title = stringOf(obj, "title");
         return TextUtils.isEmpty(title) ? (fallback == null ? "" : fallback) : title;
     }
