@@ -30,7 +30,7 @@ import java.util.concurrent.Executors;
  * 兼容上游 Vod.action 原生字段与 vod_tag:'action' + vod_id JSON 两种协议，
  * 由 TypeFragment.onItemClick 的 isAction 分支调用，替代上游只 Toast msg 的简陋处理。
  *
- * 流程：点击动作卡 → 自包含 browser 卡（type:browser + url，无需站点参与）本地直接开内置 WebView；
+ * 流程：点击动作卡 → 自包含卡片本地直接执行（browser 开内置 WebView / input 弹输入框）；
  * 其余卡片异步调 spider.action(卡片JSON) → 按响应类型分发：
  *  - type:"browser"（含嵌套在 action 字段里的变体）→ GameWebActivity 内置 WebView 打开
  *  - type:"input" → 弹输入框（title/tip/value）→ 确认后把输入填回 value 字段再次调用，
@@ -55,6 +55,19 @@ public final class ActionCardHelper {
                     GameContentHandler.titleOf(self, ""), null, GameContentHandler.headersOf(self));
             return;
         }
+        // 实验室：自包含 input 动作卡（vod_id 携带 type:input + title/tip/value，如 资源管理.py 的
+        // 访问网址/添加书签/重命名卡）本地直接弹输入框，确认后带用户输入回传 spider——
+        // 卡片自带 value 仅是预填值，若先回传会被 py 端误当作用户输入处理（重命名卡直接报同名错误）。
+        JsonObject card = parse(actionJson);
+        if (card != null && "input".equals(stringOf(card, "type"))) {
+            showInput(activity, siteKey, card);
+            return;
+        }
+        submit(activity, siteKey, actionJson);
+    }
+
+    /** 异步调 spider.action 并分发响应（回传专用，不再经过卡片本地执行判定，避免 input 回传死循环）。 */
+    private static void submit(Activity activity, String siteKey, String actionJson) {
         executor.execute(() -> {
             String resp = callSpider(siteKey, actionJson);
             main.post(() -> dispatch(activity, siteKey, resp));
@@ -97,6 +110,10 @@ public final class ActionCardHelper {
             Toast.makeText(activity, "动作无响应", Toast.LENGTH_SHORT).show();
             return;
         }
+        // 嵌套变体：{"action":{...}}（py 端 _open_url_action / toast 响应）→ 取内层对象分发，
+        // 使内层的 type / list / msg 均可命中（原先嵌套 toast 只会显示「操作完成」）。
+        JsonElement nested = obj.get("action");
+        if (nested != null && nested.isJsonObject()) obj = nested.getAsJsonObject();
         // 1. browser 动作：开内置 WebView（兼容顶层与嵌套 action 变体）
         JsonObject browser = browserAction(obj);
         if (browser != null) {
@@ -161,9 +178,10 @@ public final class ActionCardHelper {
                 return;
             }
             dialog.dismiss();
-            // 把输入填回 value 字段后再次调用（py 端支持 str 与 {text:...} 两种结构）
+            // 把输入填回 value 字段后直接回传（py 端支持 str 与 {text:...} 两种结构）；
+            // 走 submit 而非 handleAction，避免再次被本地 input 卡判定拦截成死循环。
             input.addProperty("value", text);
-            handleAction(activity, siteKey, input.toString());
+            submit(activity, siteKey, input.toString());
         });
     }
 
