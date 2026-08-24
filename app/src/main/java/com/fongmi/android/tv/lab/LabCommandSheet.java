@@ -378,6 +378,7 @@ public final class LabCommandSheet implements LabRunner.OutputListener {
             } catch (Exception e) {
                 App.post(() -> {
                     progress.setText("依赖下载失败：\n" + e.getMessage());
+                    dialog.setCancelable(true);
                     dialog.setButton(AlertDialog.BUTTON_POSITIVE, "关闭", (d, w) -> d.dismiss());
                 });
             }

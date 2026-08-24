@@ -33,7 +33,7 @@ public final class LabConfig {
     public static final int SOURCE_URL = 2;
 
     private static final String PREF = "lab";
-    private static final String KEY_SOURCE = "source";
+    private static final String KEY_SOURCE = "source_mode";
     private static final String KEY_URL = "url";
     private static final String KEY_ROOT = "root";
     private static final String KEY_LOCAL_PATH = "local_path";
@@ -47,7 +47,6 @@ public final class LabConfig {
 
     private final Gson gson = new Gson();
     private LabModels.LabRoot root;
-    private volatile String configRoot;
     private String sourceName = "";
     private String loadError = "";
 
@@ -64,7 +63,7 @@ public final class LabConfig {
     }
 
     public int getSource() {
-        return sp().getInt(KEY_SOURCE, SOURCE_LOCAL);
+        return sp().getInt(KEY_SOURCE, SOURCE_BUILTIN);
     }
 
     public void setSource(int source) {
@@ -82,7 +81,6 @@ public final class LabConfig {
     public String getRoot() {
         String override = sp().getString(KEY_ROOT, "");
         if (!TextUtils.isEmpty(override)) return override;
-        if (configRoot != null && !configRoot.isEmpty()) return configRoot;
         return ROOT_LOCAL;
     }
 
@@ -441,8 +439,6 @@ public final class LabConfig {
         if (json == null) throw new IllegalArgumentException("配置解析失败");
         LabModels.LabRoot parsed = gson.fromJson(json, LabModels.LabRoot.class);
         if (parsed == null || parsed.lists == null) throw new IllegalArgumentException("配置解析失败");
-        if (parsed.root != null && !parsed.root.isEmpty()) configRoot = parsed.root;
-        else detectRoot(parsed);
         return parsed;
     }
 
@@ -456,59 +452,6 @@ public final class LabConfig {
         int end = trimmed.lastIndexOf('}');
         if (start >= 0 && end > start) return trimmed.substring(start, end + 1);
         return null;
-    }
-
-    private void detectRoot(LabModels.LabRoot parsed) {
-        if (parsed == null || parsed.lists == null) return;
-        java.util.Map<String, Integer> counts = new java.util.HashMap<>();
-        for (LabModels.Item item : parsed.lists) {
-            if (item.downloads != null) {
-                for (LabModels.Download download : item.downloads) {
-                    score(counts, download.url);
-                    score(counts, download.liburl);
-                }
-            }
-            if (item.commands != null) {
-                for (LabModels.Command command : item.commands) {
-                    score(counts, command.command);
-                    if (command.download != null) score(counts, command.download.url);
-                    if (command.variables != null) {
-                        for (LabModels.Variable variable : command.variables) score(counts, variable.defaultValue);
-                    }
-                }
-            }
-        }
-        String best = null;
-        int bestScore = 0;
-        for (java.util.Map.Entry<String, Integer> entry : counts.entrySet()) {
-            if (entry.getValue() > bestScore) {
-                best = entry.getKey();
-                bestScore = entry.getValue();
-            }
-        }
-        if (best != null) configRoot = "/storage/emulated/0/" + best;
-    }
-
-    private void score(java.util.Map<String, Integer> counts, String text) {
-        if (text == null) return;
-        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("(?:/file/|/storage/emulated/0/)([A-Za-z0-9_\\-]+)/").matcher(text);
-        while (matcher.find()) {
-            String base = matcher.group(1);
-            if (isCommonDir(base)) continue;
-            counts.put(base, counts.getOrDefault(base, 0) + 1);
-        }
-    }
-
-    private boolean isCommonDir(String base) {
-        return "Download".equals(base)
-                || "Downloads".equals(base)
-                || "Documents".equals(base)
-                || "TV".equals(base)
-                || "DCIM".equals(base)
-                || "Android".equals(base)
-                || "Pictures".equals(base)
-                || "Music".equals(base)
-                || "Movies".equals(base);
     }
 
     private String describeSource() {

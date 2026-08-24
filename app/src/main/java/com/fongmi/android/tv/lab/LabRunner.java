@@ -196,6 +196,7 @@ public final class LabRunner {
 
     public static void applyEnv(Map<String, String> env, Context context, LabModels.Item item) {
         LabEnv.ensure7z(context);
+        LabEnv.ensureNpmShims(context);
         File packageDir = LabEnv.packageRoot(context, item);
         Set<String> pathSet = new LinkedHashSet<>();
         pathSet.add(LabEnv.sharedBin(context).getAbsolutePath());
@@ -265,7 +266,11 @@ public final class LabRunner {
         }
         applyBinEnvVars(env, context);
         applyGlobalProxy(env, item);
-        if (item.name != null && "nodejs".equalsIgnoreCase(item.name)) {
+        if (item.name != null && "nodejs".equalsIgnoreCase(item.name)
+                || new File(packageDir, "bin/node").isFile()
+                || new File(LabEnv.baseRoot(context), "nodejs/bin/node").isFile()) {
+            // npm 缺 HOME 会报 "Failed to replace env in config: ${HOME}"，
+            // 只要本包或已装环境里有 node，就补一个可写的 HOME
             putIfAbsent(env, "HOME", packageDir.getAbsolutePath());
             String nodeOptions = env.get("NODE_OPTIONS");
             if (nodeOptions == null || !nodeOptions.contains("--max-old-space-size")) {
