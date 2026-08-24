@@ -210,6 +210,10 @@ public final class LabEnv {
         default void onUnzipProgress(long done, long total) {
         }
 
+        /** 解压精确文件计数：已解压文件数 / 总文件数（totalFiles<=0 表示无法计数，UI 应隐藏此行） */
+        default void onUnzipFileProgress(int doneFiles, int totalFiles) {
+        }
+
         /**
          * 解压已完成、正在做不可量化的收尾（chmod 整目录、创建 symlink、写入 installed version 等）。
          * UI 应把状态文字切到"正在完成安装…"并保持进度条 100% 满格，
@@ -223,9 +227,9 @@ public final class LabEnv {
         void onError(String message);
     }
 
-    /** 解压进度回调：done=已写入字节，total=压缩包解压后总字节（<=0 表示未知） */
+    /** 解压进度回调：done=已写入字节，total=压缩包解压后总字节（<=0 表示未知），files/totalFiles=已解压/总文件数 */
     public interface ExtractProgress {
-        void onExtract(long done, long total);
+        void onExtract(long done, long total, int files, int totalFiles);
     }
 
     public static void install(Context context, LabModels.Item item, InstallCallback callback) {
@@ -255,8 +259,10 @@ public final class LabEnv {
                 }
                 String archiveName = archive.getName().toLowerCase(Locale.ROOT);
                 if (callback != null) App.post(() -> callback.onProgress("解压中 ..."));
-                extract(archive, root, (done, total) -> {
-                    if (callback != null) callback.onUnzipProgress(done, total);
+                extract(archive, root, (done, total, files, totalFiles) -> {
+                    if (callback == null) return;
+                    callback.onUnzipProgress(done, total);
+                    callback.onUnzipFileProgress(files, totalFiles);
                 });
                 if (!TextUtils.isEmpty(download.liburl)) {
                     File libArchive = new File(context.getCacheDir(), "lab_" + item.name + "_lib_" + sanitizeFileName(fileName(download.liburl)));
@@ -264,8 +270,10 @@ public final class LabEnv {
                         throw new IOException("找不到依赖压缩包：" + fileName(download.liburl) + "\n已搜索：\n" + searchPaths());
                     }
                     if (callback != null) App.post(() -> callback.onProgress("解压依赖组件 ..."));
-                    extract(libArchive, root, (done, total) -> {
-                        if (callback != null) callback.onUnzipProgress(done, total);
+                    extract(libArchive, root, (done, total, files, totalFiles) -> {
+                        if (callback == null) return;
+                        callback.onUnzipProgress(done, total);
+                        callback.onUnzipFileProgress(files, totalFiles);
                     });
                     libArchive.delete();
                 }
@@ -557,23 +565,31 @@ public final class LabEnv {
     }
 
     private static void extract(File archive, File root, ExtractProgress cb) throws IOException {
-        long total = cb != null ? measure(archive) : 0;
-        if (tryExtractByMagic(archive, root, total, cb)) return;
+        Progress p;
+        if (cb == null) {
+            // 依赖解压等无需进度的场景：跳过预扫描，保持原生 7z 高速路径
+            p = new Progress(0, 0, null);
+        } else {
+            // 用一次预扫描同时拿到「总字节」与「总文件数」，避免增加解压遍数
+            ArchiveStat stat = analyze(archive);
+            p = new Progress(stat.totalBytes, stat.totalFiles, cb);
+        }
+        if (tryExtractByMagic(archive, root, p)) return;
         String name = archive.getName().toLowerCase(Locale.ROOT);
         if (name.endsWith(".zip")) {
-            extractZip(archive, root, total, cb);
+            extractZip(archive, root, p);
         } else if (name.endsWith(".7z")) {
-            extract7z(archive, root, total, cb);
+            extract7z(archive, root, p);
         } else if (name.endsWith(".tar.gz") || name.endsWith(".tgz")) {
             try (InputStream in = new GzipCompressorInputStream(new FileInputStream(archive))) {
-                extractTar(in, root, total, cb);
+                extractTar(in, root, p);
             }
         } else if (name.endsWith(".tar.xz") || name.endsWith(".deb")) {
             if (name.endsWith(".deb")) {
-                extractDeb(archive, root, total, cb);
+                extractDeb(archive, root, p);
             } else {
                 try (InputStream in = new XZCompressorInputStream(new FileInputStream(archive))) {
-                    extractTar(in, root, total, cb);
+                    extractTar(in, root, p);
                 }
             }
         } else {
@@ -581,7 +597,7 @@ public final class LabEnv {
         }
     }
 
-    private static boolean tryExtractByMagic(File archive, File root, long total, ExtractProgress cb) throws IOException {
+    private static boolean tryExtractByMagic(File archive, File root, Progress p) throws IOException {
         byte[] magic = new byte[8];
         int offset = 0;
         try (InputStream in = new FileInputStream(archive)) {
@@ -592,18 +608,18 @@ public final class LabEnv {
             }
         }
         if (offset >= 2 && magic[0] == 'P' && magic[1] == 'K') {
-            extractZip(archive, root, total, cb);
+            extractZip(archive, root, p);
             return true;
         }
         if (offset >= 6 && (magic[0] & 0xFF) == 0x37 && (magic[1] & 0xFF) == 0x7A
                 && (magic[2] & 0xFF) == 0xBC && (magic[3] & 0xFF) == 0xAF
                 && (magic[4] & 0xFF) == 0x27 && (magic[5] & 0xFF) == 0x1C) {
-            extract7z(archive, root, total, cb);
+            extract7z(archive, root, p);
             return true;
         }
         if (offset >= 2 && (magic[0] & 0xFF) == 0x1F && (magic[1] & 0xFF) == 0x8B) {
             try (InputStream in = new GzipCompressorInputStream(new FileInputStream(archive))) {
-                extractTar(in, root, total, cb);
+                extractTar(in, root, p);
             }
             return true;
         }
@@ -611,18 +627,18 @@ public final class LabEnv {
                 && (magic[2] & 0xFF) == 0x7A && (magic[3] & 0xFF) == 0x58
                 && (magic[4] & 0xFF) == 0x5A && (magic[5] & 0xFF) == 0x00) {
             try (InputStream in = new XZCompressorInputStream(new FileInputStream(archive))) {
-                extractTar(in, root, total, cb);
+                extractTar(in, root, p);
             }
             return true;
         }
         if (offset >= 8 && "!<arch>\n".equals(new String(magic, 0, 8, StandardCharsets.US_ASCII))) {
-            extractDeb(archive, root, total, cb);
+            extractDeb(archive, root, p);
             return true;
         }
         return false;
     }
 
-    private static void extractDeb(File archive, File root, long total, ExtractProgress cb) throws IOException {
+    private static void extractDeb(File archive, File root, Progress p) throws IOException {
         try (BufferedInputStream in = new BufferedInputStream(new FileInputStream(archive))) {
             byte[] magic = new byte[8];
             readFully(in, magic);
@@ -642,7 +658,7 @@ public final class LabEnv {
                     try (InputStream decomp = "data.tar.xz".equals(name)
                             ? new XZCompressorInputStream(new ByteArrayInputStream(data))
                             : new GzipCompressorInputStream(new ByteArrayInputStream(data))) {
-                        extractTar(decomp, root, total, cb);
+                        extractTar(decomp, root, p);
                     }
                     return;
                 }
@@ -675,8 +691,7 @@ public final class LabEnv {
         }
     }
 
-    private static void extractZip(File archive, File root, long total, ExtractProgress cb) throws IOException {
-        Progress p = new Progress(total, cb);
+    private static void extractZip(File archive, File root, Progress p) throws IOException {
         try (ZipFile zip = new ZipFile(archive, StandardCharsets.UTF_8)) {
             Enumeration<? extends ZipEntry> en = zip.entries();
             while (en.hasMoreElements()) {
@@ -686,19 +701,19 @@ public final class LabEnv {
                     target.mkdirs();
                     continue;
                 }
+                p.filesDone++;
                 target.getParentFile().mkdirs();
                 try (InputStream in = zip.getInputStream(entry); FileOutputStream out = new FileOutputStream(target)) {
                     copyProg(in, out, p);
                 }
-                if (cb != null) cb.onExtract(p.done, total);
+                emit(p);
             }
         }
-        if (cb != null) cb.onExtract(total, total);
+        emit(p);
     }
 
-    private static void extract7z(File archive, File root, long total, ExtractProgress cb) throws IOException {
-        if (cb == null && extract7zNative(archive, root)) return;
-        Progress p = new Progress(total, cb);
+    private static void extract7z(File archive, File root, Progress p) throws IOException {
+        if (p.cb == null && extract7zNative(archive, root)) return;
         try (SevenZFile sevenZ = new SevenZFile(archive)) {
             SevenZArchiveEntry entry;
             while ((entry = sevenZ.getNextEntry()) != null) {
@@ -707,6 +722,7 @@ public final class LabEnv {
                     target.mkdirs();
                     continue;
                 }
+                p.filesDone++;
                 target.getParentFile().mkdirs();
                 try (FileOutputStream out = new FileOutputStream(target)) {
                     byte[] buf = new byte[16384];
@@ -715,13 +731,13 @@ public final class LabEnv {
                     while ((len = sevenZ.read(buf)) != -1) {
                         out.write(buf, 0, len);
                         p.done += len; since += len;
-                        if (since >= 262144) { since = 0; if (cb != null) cb.onExtract(p.done, total); }
+                        if (since >= 262144) { since = 0; emit(p); }
                     }
                 }
-                if (cb != null) cb.onExtract(p.done, total);
+                emit(p);
             }
         }
-        if (cb != null) cb.onExtract(total, total);
+        emit(p);
     }
 
     private static boolean extract7zNative(File archive, File root) throws IOException {
@@ -754,8 +770,7 @@ public final class LabEnv {
         }
     }
 
-    private static void extractTar(InputStream in, File root, long total, ExtractProgress cb) throws IOException {
-        Progress p = new Progress(total, cb);
+    private static void extractTar(InputStream in, File root, Progress p) throws IOException {
         try (TarArchiveInputStream tar = new TarArchiveInputStream(in)) {
             TarArchiveEntry entry;
             while ((entry = tar.getNextTarEntry()) != null) {
@@ -764,16 +779,17 @@ public final class LabEnv {
                     target.mkdirs();
                     continue;
                 }
+                p.filesDone++;
                 target.getParentFile().mkdirs();
                 try (FileOutputStream out = new FileOutputStream(target)) {
                     copyProg(tar, out, p);
                 }
                 boolean executable = (entry.getMode() & 0111) != 0;
                 if (executable) target.setExecutable(true, false);
-                if (cb != null) cb.onExtract(p.done, total);
+                emit(p);
             }
         }
-        if (cb != null) cb.onExtract(total, total);
+        emit(p);
     }
 
     private static File safeTarget(File root, String name) throws IOException {
@@ -795,12 +811,20 @@ public final class LabEnv {
     private static final class Progress {
         long done;
         final long total;
+        int filesDone;
+        final int totalFiles;
         final ExtractProgress cb;
 
-        Progress(long total, ExtractProgress cb) {
+        Progress(long total, int totalFiles, ExtractProgress cb) {
             this.total = total;
+            this.totalFiles = totalFiles;
             this.cb = cb;
         }
+    }
+
+    /** 统一把当前（字节 + 文件计数）进度推给回调；cb 为 null 时直接跳过（依赖解压等无进度场景） */
+    private static void emit(Progress p) {
+        if (p.cb != null) p.cb.onExtract(p.done, p.total, p.filesDone, p.totalFiles);
     }
 
     /** 带进度累加的拷贝：每写入约 256KB 回调一次，结束再补一次 100% */
@@ -815,66 +839,114 @@ public final class LabEnv {
                 since += len;
                 if (since >= 262144) {
                     since = 0;
-                    if (p.cb != null) p.cb.onExtract(p.done, p.total);
+                    emit(p);
                 }
             }
         }
-        if (p != null && p.cb != null) p.cb.onExtract(p.done, p.total);
+        if (p != null) emit(p);
     }
 
-    /** 预估压缩包解压后的总字节数；无法预估时返回 0（UI 退化为不确定进度） */
-    private static long measure(File archive) {
+    /** 压缩包预扫描结果：解压后总字节 + 总文件数（不含目录项） */
+    private static final class ArchiveStat {
+        long totalBytes;
+        int totalFiles;
+    }
+
+    /**
+     * 预扫描压缩包，一次性拿到「解压后总字节」与「总文件数」。
+     * 复用原有 measure 的遍历路径：zip/7z 只读元数据（几乎零成本），
+     * tar 系需完整解一遍流（与原 measure 成本一致，不额外增加一遍），
+     * 因此本改动不会拖慢 lab 安装速度。
+     * 文件数超 20 万时停止计数（仅保留字节进度），避免极端大包无意义遍历。
+     */
+    private static ArchiveStat analyze(File archive) {
+        ArchiveStat stat = new ArchiveStat();
         try {
             String lower = archive.getName().toLowerCase(Locale.ROOT);
-            if (lower.endsWith(".zip")) return measureZip(archive);
-            if (lower.endsWith(".7z")) return measure7z(archive);
-            if (lower.endsWith(".tar.gz") || lower.endsWith(".tgz")) {
+            if (lower.endsWith(".zip")) {
+                analyzeZip(archive, stat);
+            } else if (lower.endsWith(".7z")) {
+                analyze7z(archive, stat);
+            } else if (lower.endsWith(".tar.gz") || lower.endsWith(".tgz")) {
                 try (InputStream in = new GzipCompressorInputStream(new FileInputStream(archive))) {
-                    return measureTarStream(in);
+                    analyzeTar(in, stat);
                 }
-            }
-            if (lower.endsWith(".tar.xz")) {
+            } else if (lower.endsWith(".tar.xz")) {
                 try (InputStream in = new XZCompressorInputStream(new FileInputStream(archive))) {
-                    return measureTarStream(in);
+                    analyzeTar(in, stat);
                 }
+            } else if (lower.endsWith(".deb")) {
+                analyzeDeb(archive, stat);
             }
         } catch (Exception ignored) {
         }
-        return 0;
+        return stat;
     }
 
-    private static long measureZip(File archive) throws IOException {
-        long total = 0;
+    private static void analyzeZip(File archive, ArchiveStat stat) throws IOException {
         try (ZipFile zip = new ZipFile(archive, StandardCharsets.UTF_8)) {
             Enumeration<? extends ZipEntry> en = zip.entries();
             while (en.hasMoreElements()) {
                 ZipEntry e = en.nextElement();
-                if (!e.isDirectory()) total += e.getSize();
+                if (e.isDirectory()) continue;
+                stat.totalBytes += e.getSize();
+                stat.totalFiles++;
+                if (stat.totalFiles > 200000) return;
             }
         }
-        return total;
     }
 
-    private static long measure7z(File archive) throws IOException {
-        long total = 0;
+    private static void analyze7z(File archive, ArchiveStat stat) throws IOException {
         try (SevenZFile sevenZ = new SevenZFile(archive)) {
             SevenZArchiveEntry e;
             while ((e = sevenZ.getNextEntry()) != null) {
-                if (!e.isDirectory()) total += e.getSize();
+                if (e.isDirectory()) continue;
+                stat.totalBytes += e.getSize();
+                stat.totalFiles++;
+                if (stat.totalFiles > 200000) return;
             }
         }
-        return total;
     }
 
-    private static long measureTarStream(InputStream in) throws IOException {
-        long total = 0;
+    private static void analyzeTar(InputStream in, ArchiveStat stat) throws IOException {
         try (TarArchiveInputStream tar = new TarArchiveInputStream(in)) {
             TarArchiveEntry e;
             while ((e = tar.getNextTarEntry()) != null) {
-                if (!e.isDirectory()) total += e.getSize();
+                if (e.isDirectory()) continue;
+                stat.totalBytes += e.getSize();
+                stat.totalFiles++;
+                if (stat.totalFiles > 200000) return;
             }
         }
-        return total;
+    }
+
+    private static void analyzeDeb(File archive, ArchiveStat stat) throws IOException {
+        try (BufferedInputStream in = new BufferedInputStream(new FileInputStream(archive))) {
+            byte[] magic = new byte[8];
+            readFully(in, magic);
+            if (!"!<arch>\n".equals(new String(magic, StandardCharsets.US_ASCII))) return;
+            while (true) {
+                byte[] header = new byte[60];
+                if (!readFully(in, header)) break;
+                String name = new String(header, 0, 16, StandardCharsets.US_ASCII).trim();
+                String sizeText = new String(header, 48, 10, StandardCharsets.US_ASCII).trim();
+                long size = Long.parseLong(sizeText);
+                if (name.endsWith("/")) name = name.substring(0, name.length() - 1);
+                if ("data.tar.xz".equals(name) || "data.tar.gz".equals(name)) {
+                    byte[] data = new byte[(int) size];
+                    readFully(in, data);
+                    InputStream decomp = "data.tar.xz".equals(name)
+                            ? new XZCompressorInputStream(new ByteArrayInputStream(data))
+                            : new GzipCompressorInputStream(new ByteArrayInputStream(data));
+                    try (InputStream d = decomp) {
+                        analyzeTar(d, stat);
+                    }
+                    return;
+                }
+                skipFully(in, size);
+                if ((size & 1L) == 1L) in.read();
+            }
+        }
     }
 
     private static void chmod(File root) {
