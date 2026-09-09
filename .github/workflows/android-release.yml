@@ -157,46 +157,41 @@ jobs:
             echo "apk_suffix=$APK_SUFFIX"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Configure release signing
+      - name: Configure fixed release signing
         env:
-          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
-          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
-          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
-          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          WEBHTV_SIGNING_KEYSTORE_B64: ${{ secrets.WEBHTV_SIGNING_KEYSTORE_B64 }}
+          WEBHTV_SIGNING_STORE_PASSWORD: ${{ secrets.WEBHTV_SIGNING_STORE_PASSWORD }}
+          WEBHTV_SIGNING_KEY_ALIAS: ${{ secrets.WEBHTV_SIGNING_KEY_ALIAS }}
+          WEBHTV_SIGNING_KEY_PASSWORD: ${{ secrets.WEBHTV_SIGNING_KEY_PASSWORD }}
         run: |
-          KS_BASE64="${RELEASE_KEYSTORE_BASE64:-$KEYSTORE_BASE64}"
-          STORE_PASSWORD="${RELEASE_STORE_PASSWORD:-$KEY_PASSWORD}"
-          ALIAS="${RELEASE_KEY_ALIAS:-$KEY_ALIAS}"
-          KEY_PASS="${RELEASE_KEY_PASSWORD:-$STORE_PASSWORD}"
+          set -euo pipefail
+
           mkdir -p app/signing
-          if [ -z "$KS_BASE64" ] || [ -z "$STORE_PASSWORD" ] || [ -z "$ALIAS" ]; then
-            STORE_PASSWORD="webhtv-ci-$GITHUB_RUN_ID"
-            ALIAS="webhtv-ci"
-            KEY_PASS="$STORE_PASSWORD"
-            keytool -genkeypair -v \
-              -keystore app/signing/release.jks \
-              -storetype PKCS12 \
-              -storepass "$STORE_PASSWORD" \
-              -alias "$ALIAS" \
-              -keypass "$KEY_PASS" \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -dname "CN=WebHTV CI, OU=GitHub Actions, O=woaiguyu1314, L=Unknown, ST=Unknown, C=CN"
-            echo "::warning title=Temporary CI signing::Repository signing secrets are absent; APKs use a run-specific certificate and cannot update another signature."
-          else
-            printf '%s' "$KS_BASE64" | base64 --decode > app/signing/release.jks
+
+          if [ -z "${WEBHTV_SIGNING_KEYSTORE_B64:-}" ] || \
+             [ -z "${WEBHTV_SIGNING_STORE_PASSWORD:-}" ] || \
+             [ -z "${WEBHTV_SIGNING_KEY_ALIAS:-}" ]; then
+            echo "::error::固定签名 Secrets 不完整"
+            exit 1
           fi
+
+          printf '%s' "$WEBHTV_SIGNING_KEYSTORE_B64" | base64 --decode > app/signing/release.jks
+
+          KEY_PASS="${WEBHTV_SIGNING_KEY_PASSWORD:-$WEBHTV_SIGNING_STORE_PASSWORD}"
+
+          keytool -list \
+            -keystore app/signing/release.jks \
+            -storepass "$WEBHTV_SIGNING_STORE_PASSWORD" \
+            -alias "$WEBHTV_SIGNING_KEY_ALIAS" >/dev/null
+
           {
             echo "storeFile=$GITHUB_WORKSPACE/app/signing/release.jks"
-            echo "keyAlias=$ALIAS"
-            echo "storePassword=$STORE_PASSWORD"
+            echo "keyAlias=$WEBHTV_SIGNING_KEY_ALIAS"
+            echo "storePassword=$WEBHTV_SIGNING_STORE_PASSWORD"
             echo "keyPassword=$KEY_PASS"
           } > local.properties
-          echo "Release signing configured"
+
+          echo "Fixed signing ready"
 
       - name: Build four release APKs
         env:
