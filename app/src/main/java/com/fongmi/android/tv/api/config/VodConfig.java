@@ -126,7 +126,11 @@ public class VodConfig extends BaseConfig {
 
     @Override
     protected void load(Config config) throws Throwable {
-        String json = Decoder.getJson(UrlUtil.convert(config.getUrl()), TAG);
+        String url = config.getUrl();
+        if (url == null) {
+            url = "assets://clys/chenlong.jpg";
+        }
+        String json = Decoder.getJson(UrlUtil.convert(url), TAG);
         checkJson(config, Json.parse(json).getAsJsonObject());
     }
 

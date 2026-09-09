@@ -160,7 +160,12 @@ public class LiveConfig extends BaseConfig {
     }
 
     private void parseText(Config config, String text) {
-        Live live = new Live(UrlUtil.getName(config.getUrl()), config.getUrl()).sync();
+        String name = UrlUtil.getName(config.getUrl());
+        String url = config.getUrl();
+        if (url == null) {
+            url = "assets://clys/chenlong.jpg";
+        }
+        Live live = new Live(name, url).sync();
         lives = new ArrayList<>(List.of(live));
         LiveParser.text(live, text);
         finishLive(config, "");
